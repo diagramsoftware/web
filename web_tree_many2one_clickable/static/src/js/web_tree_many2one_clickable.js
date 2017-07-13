@@ -60,11 +60,13 @@ openerp.web_tree_many2one_clickable = function(instance, local)
         _format: function (row_data, options)
         {
             if (this.use_many2one_clickable && !!row_data[this.id]) {
+                var ctx = this.context;
                 var values = {
                     model: this.relation,
                     id: row_data[this.id].value[0],
                     name: _.escape(row_data[this.id].value[1] || options.value_if_empty),
-                }
+                    context: _.escape(_.isObject(ctx) ? JSON.stringify(ctx) : ctx),
+                };
                 if(this.type == 'reference' && !!row_data[this.id + '__display'])
                 {
                     values.model = row_data[this.id].value.split(',', 1)[0];
@@ -72,7 +74,7 @@ openerp.web_tree_many2one_clickable = function(instance, local)
                     values.name = _.escape(row_data[this.id + '__display'].value || options.value_if_empty);
                 }
                 return _.str.sprintf(
-                    '<a class="oe_form_uri" data-many2one-clickable-model="%(model)s" data-many2one-clickable-id="%(id)s">%(name)s</a>',
+                    '<a class="oe_form_uri" data-many2one-clickable-model="%(model)s" data-many2one-clickable-id="%(id)s" data-many2one-clickable-context="%(context)s">%(name)s</a>',
                     values
                 );
             }
@@ -80,8 +82,7 @@ openerp.web_tree_many2one_clickable = function(instance, local)
                 return this._super(row_data, options);
             }
         },
-
-	});
+    });
 
     /* many2one_clickable widget */
 
@@ -95,21 +96,70 @@ openerp.web_tree_many2one_clickable = function(instance, local)
     /* click action */
 
     instance.web.ListView.List.include({
-        render: function()
-        {
+        render: function () {
             var result = this._super(this, arguments),
                 self = this;
-            this.$current.delegate('a[data-many2one-clickable-model]',
-                'click', function()
-                {
-                    self.view.do_action({
-                        type: 'ir.actions.act_window',
-                        res_model: jQuery(this).data('many2one-clickable-model'),
-                        res_id: jQuery(this).data('many2one-clickable-id'),
-                        views: [[false, 'form']],
+
+            this.$current.delegate('a[data-many2one-clickable-model]', 'click', function () {
+                var $this = $(this);
+
+                // Field data
+                var model_name = $this.data('many2one-clickable-model');
+                var record_id = $this.data('many2one-clickable-id');
+                var local_context = $this.data('many2one-clickable-context');
+
+                // Row data
+                var row_id = $this.parents('tr:first').data('id');
+                var row_vals = self.records.get(row_id).toContext();
+
+                // Parent data
+                var parent_vals = self.dataset.parent_view &&
+                    self.dataset.parent_view.get_fields_values() || {};
+
+                var eval_context = _.extend({}, row_vals, {'parent': parent_vals});
+
+                // FIX: Delete undefined context values
+                for ( var key in eval_context ) {
+                    if ( eval_context.hasOwnProperty(key) ) {
+                        if ( typeof eval_context[key] === 'undefined' ) {
+                            delete eval_context[key];
+                        }
+                    }
+                }
+
+                var context = new instance.web.CompoundContext(self.dataset.get_context(), {
+                    'active_model': model_name,
+                    'active_id': record_id,
+                    'active_ids': [record_id],
+                }, local_context).set_eval_context(eval_context).eval();
+
+                // FIX: Avoid view_ref propagation
+                for ( var key in context ) {
+                    if ( context.hasOwnProperty(key) ) {
+                        if ( _.string.endsWith(key, '_view_ref' ) ) {
+                            delete context[key];
+                        }
+                    }
+                }
+
+                new instance.web.Model(model_name)
+                    .call('get_formview_id', [record_id, context])
+                    .then(function (view_id) {
+                        if ( _.isArray(view_id) ) {
+                            view_id = view_id[0];
+                        }
+
+                        self.view.do_action({
+                            type: 'ir.actions.act_window',
+                            res_model: model_name,
+                            res_id: record_id,
+                            views: [[view_id, 'form']],
+                            context: context,
+                        });
                     });
-                });
+            });
+
             return result;
         },
     });
-}
+};
