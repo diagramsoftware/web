@@ -18,10 +18,14 @@ openerp.web_x2m_defaults_from_previous = function(instance)
             }
             _.each(default_fields, function(field_name)
             {
+                /*
+                    TODO: ver pq en views[0] no llega embedded_view, y en caso que no venga que
+                    posición del dataset utilizar.
+                */
+                var embedded_view = self.views[0].embedded_view;
+                var position = embedded_view ? embedded_view.arch.attrs.editable : '';
                 var value = self.dataset.cache[
-                    self.views[0].embedded_view.arch.attrs.editable == 'top' ?
-                    0 :
-                    self.dataset.cache.length - 1
+                    position == 'top' ? 0 : self.dataset.cache.length - 1
                 ].values[field_name];
                 if(_.isArray(value))
                 {
