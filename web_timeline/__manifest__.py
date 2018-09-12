@@ -4,10 +4,11 @@
 {
     'name': "Web timeline",
     'summary': "Interactive visualization chart to show events in time",
-    "version": "11.0.1.0.1",
+    "version": "11.0.1.3.0",
     'author': 'ACSONE SA/NV, '
               'Tecnativa, '
               'Monk Software, '
+              'Onestein, '
               'Odoo Community Association (OCA)',
     "category": "web",
     "license": "AGPL-3",
